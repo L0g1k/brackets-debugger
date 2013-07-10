@@ -130,13 +130,14 @@ define(function (require, exports, module) {
 
 	// Inspector connected
 	function _onConnect() {
-		Inspector.Debugger.enable();
-		for (var i in _breakpoints) {
-			var b = _breakpoints[i];
-			if (b.active) {
-				b.set();
+		Inspector.Debugger.enable().done(function () {
+			for (var i in _breakpoints) {
+				var b = _breakpoints[i];
+				if (b.active) {
+					b.set();
+				}
 			}
-		}
+		});
 	}
 
 	// Init

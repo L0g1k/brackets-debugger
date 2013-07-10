@@ -66,35 +66,14 @@ define(function (require, exports, module) {
 		if (! script) { return undefined; }
 		return script.url;
 	}
-	
-    /** Sets a line class and removes it after a delay */
-	function setTemporaryLineClass(editor, line, className, delay) {
-		// get CodeMirror's line elements
-		// this is much faster than working with the codemirror api
-		var $codeLines = $(".CodeMirror-lines > div > div:last > pre");
-
-		// add the class directly
-		var $line = $codeLines.eq(line);
-		$line.addClass(className);
-
-		// Stop any previous attempts of removing the line class
-		window.clearTimeout(traceLineTimeouts[line]);
-
-		// Remove the line class after the given delay
-		traceLineTimeouts[line] = window.setTimeout(function () {
-			$line.attr("class", null);
-			delete traceLineTimeouts[line];
-		}, delay);
-	}
 
 	/** Event Handlers *******************************************************/
-	
-	function onLineNumberClick(event) {
+
+	function onGutterClick(cm, line, gutterClass, clickEevnt) {
 		// Todo: find the editor that was actually clicked
-		var editor = EditorManager.getCurrentFullEditor();
-		var pos    = editor._codeMirror.coordsChar({ x: event.clientX, y: event.clientY });
-		
-		var location = { url: editor.document.url, lineNumber: pos.line };
+		var editor = EditorManager.getCurrentFullEditor(),
+			location = { url: editor.document.url, lineNumber: line };
+
 		Debugger.toggleBreakpoint(location);
 	}
 
@@ -134,12 +113,23 @@ define(function (require, exports, module) {
 		$btnBreakEvents.toggleClass("enabled", flag);
 	}
 
+	function onActiveEditorChange(event, current, previous) {
+		if (previous) {
+			previous._codeMirror.off("gutterClick", onGutterClick);
+		}
+
+		if (current) {
+			current._codeMirror.on("gutterClick", onGutterClick);
+		}
+	}
+
 	/** Init Functions *******************************************************/
 	
 	// init
 	var $btnBreakEvents;
 	function init() {
 		// enable experimental agents
+		LiveDevelopment.enableAgent("dom");
 		LiveDevelopment.enableAgent("script");
 		LiveDevelopment.enableAgent("highlight");
 		LiveDevelopment.enableAgent("goto");
@@ -163,11 +153,9 @@ define(function (require, exports, module) {
 		$Debugger.on("paused", onPaused);
 		$Debugger.on("resumed", onResumed);
 
-		// register for code mirror click events
-		// Todo: use CodeMirror's onGutterClick
-		// Then we would know which editor was clicked (inline or full)
-		// Right now this would be buggy, though: https://github.com/adobe/brackets/issues/1251
-		$("body").on("click", ".CodeMirror-gutter pre", onLineNumberClick);
+		// register for code mirror onGutterClick events
+		$(EditorManager).on("activeEditorChange.debugger", onActiveEditorChange);
+		onActiveEditorChange(null, EditorManager.getCurrentFullEditor());
 	}
 
 	// unload
@@ -177,10 +165,9 @@ define(function (require, exports, module) {
 		Breakpoint.unload();
 		Debugger.unload();
 		$style.remove();
-		$("body").off("click", ".CodeMirror-gutter pre", onLineNumberClick);
+		$(EditorManager).off(".debugger");
 	}
 
-	exports.init = init;
 	exports.unload = unload;
 	exports.ENABLE_TRACEPOINTS = ENABLE_TRACEPOINTS;
 
